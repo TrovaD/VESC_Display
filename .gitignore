@@ -1,0 +1,7 @@
+.pio
+.vscode
+.gemini
+node_modules
+*.bin
+*.elf
+*.map
