@@ -47,7 +47,11 @@ void draw_startup_animation(uint32_t elapsed) {
     int x_offset = (int)(elapsed * 0.03); 
 
     u8g2.setFont(u8g2_font_6x10_tf);
-    u8g2.drawStr(x_offset + 7, 35, "__o");
+    // ASCII Bike refined
+    //    __o
+    //  _`\<,_
+    // (x)/ (x)
+    u8g2.drawStr(x_offset + 7, 34, "__o"); // Neck fix: moved up 1px
     u8g2.drawStr(x_offset + 4, 43, "_`\\<,_");
 
     if (frame % 2 == 0) {
@@ -61,8 +65,8 @@ void draw_startup_animation(uint32_t elapsed) {
         u8g2.drawStr(i - road_shift, 60, "~~~~~");
     }
 
-    u8g2.setFont(u8g2_font_ncenB08_tr);
-    u8g2.drawStr(35, 20, "VESC DISP 2");
+    u8g2.setFont(u8g2_font_lubI08_tr); // ITC Lubalin Graph Italic
+    u8g2.drawStr(38, 20, "TROVATA");
 }
 
 void scene_dashboard() {
