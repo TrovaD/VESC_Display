@@ -2,6 +2,8 @@
 
 U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
 
+static const uint32_t UI_REFRESH_MS = 100; // UI refresh interval in milliseconds
+
 static uint32_t startup_start_time = 0;
 static bool startup_finished = false;
 
@@ -20,11 +22,11 @@ void ui_init() {
 
 void ui_update() {
     static uint32_t last_draw = 0;
-    if (millis() - last_draw < 100) return; // 10Hz UI refresh
+    if (millis() - last_draw < UI_REFRESH_MS) return; // UI refresh
     last_draw = millis();
 
     u8g2.clearBuffer();
-    
+
     uint32_t elapsed = millis() - startup_start_time;
     if (elapsed < 5000 && !startup_finished) {
         draw_startup_animation(elapsed);
@@ -38,20 +40,20 @@ void ui_update() {
             default: state.current_page = 0; break;
         }
     }
-    
+
     u8g2.sendBuffer();
 }
 
 void draw_startup_animation(uint32_t elapsed) {
-    int frame = elapsed / 50;
-    int x_offset = (int)(elapsed * 0.03); 
+    int frame = elapsed / UI_REFRESH_MS;
+    int x_offset = (int)(elapsed * 0.03);
 
     u8g2.setFont(u8g2_font_6x10_tf);
     // ASCII Bike refined
     //    __o
     //  _`\<,_
     // (x)/ (x)
-    u8g2.drawStr(x_offset + 7, 34, "__o"); // Neck fix: moved up 1px
+    u8g2.drawStr(x_offset + 16, 32, "__o"); // Neck fix: moved up 1px
     u8g2.drawStr(x_offset + 4, 43, "_`\\<,_");
 
     if (frame % 2 == 0) {
@@ -65,8 +67,8 @@ void draw_startup_animation(uint32_t elapsed) {
         u8g2.drawStr(i - road_shift, 60, "~~~~~");
     }
 
-    u8g2.setFont(u8g2_font_lubI08_tr); // ITC Lubalin Graph Italic
-    u8g2.drawStr(38, 20, "TROVATA");
+    u8g2.setFont(u8g2_font_lubBI10_tf);
+    u8g2.drawStr(30, 20, "TROVATA");
 }
 
 void scene_dashboard() {
@@ -76,7 +78,7 @@ void scene_dashboard() {
     if (bar_width > 0) u8g2.drawBox(2, 2, bar_width, 6);
 
     u8g2.setFont(u8g2_font_logisoso24_tr);
-    sprintf(buf, "%.1f", state.speed_kmh); 
+    sprintf(buf, "%.1f", state.speed_kmh);
     u8g2.drawStr(5, 45, buf);
     u8g2.setFont(u8g2_font_6x10_tf);
     u8g2.drawStr(80, 45, "km/h");
@@ -84,9 +86,6 @@ void scene_dashboard() {
     float watts = state.input_voltage * state.input_current;
     sprintf(buf, "%.0f W", watts);
     u8g2.drawStr(5, 62, buf);
-
-    sprintf(buf, "PAS: %d", state.assist_level);
-    u8g2.drawStr(50, 62, buf);
 
     sprintf(buf, "%.0f%%", state.bms_soc);
     u8g2.drawStr(95, 62, buf);
@@ -103,8 +102,7 @@ void scene_power_metrics() {
     sprintf(buf, "Current: %.1f A", state.input_current);
     u8g2.drawStr(0, 38, buf);
 
-    float watts = state.input_voltage * state.input_current;
-    sprintf(buf, "Power:   %.0f W", watts);
+    sprintf(buf, "Effic:   %.1f Wh/km", state.efficiency);
     u8g2.drawStr(0, 51, buf);
 
     sprintf(buf, "Used:    %.2f Ah", state.amp_hours);
@@ -126,7 +124,7 @@ void scene_trip_computer() {
     sprintf(buf, "Time: %02d:%02d:%02d", active_s/3600, (active_s%3600)/60, active_s%60);
     u8g2.drawStr(0, 51, buf);
 
-    sprintf(buf, "Sess: %.2f km", state.travel_distance);
+    sprintf(buf, "Avg:  %.1f km/h", state.avg_speed);
     u8g2.drawStr(0, 64, buf);
 }
 
@@ -140,7 +138,8 @@ void scene_system_health() {
     u8g2.drawStr(0, 25, buf);
     sprintf(buf, "Motor: %.1f C", state.motor_temp);
     u8g2.drawStr(0, 38, buf);
-    sprintf(buf, "BMS:   %.1f C", state.bms_hottest_cell);
+    
+    sprintf(buf, "CAN:   %.0f msg/s", state.can_load);
     u8g2.drawStr(0, 51, buf);
 
     if (state.fault_code == 0) {
