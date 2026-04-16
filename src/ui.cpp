@@ -12,6 +12,7 @@ void scene_dashboard();
 void scene_power_metrics();
 void scene_trip_computer();
 void scene_system_health();
+void scene_cell_voltages();
 void draw_startup_animation(uint32_t elapsed);
 
 void ui_init() {
@@ -37,6 +38,7 @@ void ui_update() {
             case 1: scene_power_metrics(); break;
             case 2: scene_trip_computer(); break;
             case 3: scene_system_health(); break;
+            case 4: scene_cell_voltages(); break;
             default: state.current_page = 0; break;
         }
     }
@@ -154,4 +156,23 @@ void scene_system_health() {
 
     sprintf(buf, "CAN:   %.0f msg/s", state.can_load);
     u8g2.drawStr(0, 64, buf);
+}
+
+void scene_cell_voltages() {
+    char buf[16];
+    u8g2.setFont(u8g2_font_5x7_tf);
+    u8g2.drawStr(0, 8, "CELL VOLTAGES");
+    u8g2.drawLine(0, 10, 128, 10);
+
+    for (int i = 0; i < 16; i++) {
+        int x = (i % 4) * 32;
+        int y = 20 + (i / 4) * 11;
+        if (state.cell_voltages[i] > 0) {
+            sprintf(buf, "%d:%.2f", i+1, state.cell_voltages[i]);
+            u8g2.drawStr(x, y, buf);
+        } else {
+            sprintf(buf, "%d:---", i+1);
+            u8g2.drawStr(x, y, buf);
+        }
+    }
 }

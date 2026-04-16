@@ -20,10 +20,13 @@ struct SystemState {
     float input_current = 0;
     float duty_cycle = 0;
     float input_voltage = 0;
+    float bms_voltage = 0;
     float tachometer = 0;
+    float erpm = 0;
     float amp_hours = 0;
     float bms_soc = 0;
     float bms_hottest_cell = 0;
+    float cell_voltages[16] = {0};
     float speed_kmh = 0;
     float odometer = 0;
     float trip_distance = 0;

@@ -98,7 +98,7 @@ void logic_update() {
         if (prev_tacho != 0) {
             float delta_tacho = state.tachometer - prev_tacho;
             // 1 mechanical rev = pole_pairs * 6 steps
-            float delta_dist = (delta_tacho / (POLE_PAIRS * 6.0 * GEAR_RATIO)) * WHEEL_CIRCUMFERENCE;
+            float delta_dist = fabsf((delta_tacho / (POLE_PAIRS * 6.0 * GEAR_RATIO)) * WHEEL_CIRCUMFERENCE);
             static uint32_t last_tacho_time = 0;
             
             if (delta_dist > 0) {
@@ -115,12 +115,23 @@ void logic_update() {
                         state.speed_kmh = (dist_km * 3600000.0) / dt;
                     }
                 }
+            } else if (state.erpm != 0) {
+                // Fallback to ERPM for instantaneous speed if tacho isn't moving
+                state.speed_kmh = fabsf((state.erpm / (POLE_PAIRS * GEAR_RATIO)) * WHEEL_CIRCUMFERENCE * 60.0 / 1000.0);
             } else {
                 state.speed_kmh = 0;
             }
             last_tacho_time = now;
         }
         prev_tacho = state.tachometer;
+    } else if (state.erpm != 0) {
+        // Fallback to ERPM if tachometer is not available (0)
+        state.speed_kmh = fabsf((state.erpm / (POLE_PAIRS * GEAR_RATIO)) * WHEEL_CIRCUMFERENCE * 60.0 / 1000.0);
+        if (state.speed_kmh > 1.0) {
+            last_activity_time = now;
+            moving_time_ms += dt_logic;
+            // Note: Cannot easily update odometer from ERPM without precise integration
+        }
     } else {
         state.speed_kmh = 0;
     }
@@ -130,8 +141,13 @@ void logic_update() {
         state.avg_speed = (state.travel_distance * 3600000.0) / moving_time_ms;
     }
 
+    // Power Calculation
+    float calc_volt = (state.input_voltage > 0) ? state.input_voltage : state.bms_voltage;
+    // Use the max of input_current or motor_current * duty to capture power regardless of reporting status
+    float calc_amps = (fabsf(state.input_current) > 0.05f) ? state.input_current : (state.motor_current * state.duty_cycle);
+    float power = calc_volt * calc_amps;
+
     // Efficiency Calculation (Wh/km)
-    float power = state.input_voltage * state.input_current;
     if (state.speed_kmh > 1.0) { // Only calc when moving > 1km/h to avoid spikes
         float instant_eff = power / state.speed_kmh;
         if (state.efficiency <= 0) state.efficiency = instant_eff;
