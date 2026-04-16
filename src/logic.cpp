@@ -60,6 +60,7 @@ void b1_short() {
     if (state.assist_level > 0) {
         state.assist_level--;
         prefs.putUChar("assist", state.assist_level);
+        telemetry_send_assist(state.assist_level * 0.25f);
     }
 }
 
@@ -71,9 +72,10 @@ void b1_long() {
 
 // B2 Short: Increase Assist
 void b2_short() {
-    if (state.assist_level < 9) {
+    if (state.assist_level < 4) {
         state.assist_level++;
         prefs.putUChar("assist", state.assist_level);
+        telemetry_send_assist(state.assist_level * 0.25f);
     }
 }
 
@@ -93,69 +95,38 @@ void logic_update() {
     handle_button(btn1, b1_short, b1_long);
     handle_button(btn2, b2_short, b2_long);
 
-    // Distance Calculation (FSD 4.3 with *6.0 fix)
-    if (state.tachometer != 0) {
-        if (prev_tacho != 0) {
-            float delta_tacho = state.tachometer - prev_tacho;
-            // 1 mechanical rev = pole_pairs * 6 steps
-            float delta_dist = fabsf((delta_tacho / (POLE_PAIRS * 6.0 * GEAR_RATIO)) * WHEEL_CIRCUMFERENCE);
-            static uint32_t last_tacho_time = 0;
-            
-            if (delta_dist > 0) {
-                float dist_km = delta_dist / 1000.0;
-                state.odometer += dist_km;
-                state.trip_distance += dist_km;
-                state.travel_distance += dist_km;
-                last_activity_time = now;
-                moving_time_ms += dt_logic;
+    // Speed Calculation (ERPM based)
+    // Speed (km/h) = (ERPM / Pole_Pairs / Gear_Ratio) * Circumference * 60 / 1000
+    state.speed_kmh = fabsf((state.erpm / (POLE_PAIRS * GEAR_RATIO)) * WHEEL_CIRCUMFERENCE * 60.0f / 1000.0f);
 
-                if (last_tacho_time != 0) {
-                    uint32_t dt = now - last_tacho_time;
-                    if (dt > 0) {
-                        state.speed_kmh = (dist_km * 3600000.0) / dt;
-                    }
-                }
-            } else if (state.erpm != 0) {
-                // Fallback to ERPM for instantaneous speed if tacho isn't moving
-                state.speed_kmh = fabsf((state.erpm / (POLE_PAIRS * GEAR_RATIO)) * WHEEL_CIRCUMFERENCE * 60.0 / 1000.0);
-            } else {
-                state.speed_kmh = 0;
-            }
-            last_tacho_time = now;
-        }
-        prev_tacho = state.tachometer;
-    } else if (state.erpm != 0) {
-        // Fallback to ERPM if tachometer is not available (0)
-        state.speed_kmh = fabsf((state.erpm / (POLE_PAIRS * GEAR_RATIO)) * WHEEL_CIRCUMFERENCE * 60.0 / 1000.0);
-        if (state.speed_kmh > 1.0) {
-            last_activity_time = now;
-            moving_time_ms += dt_logic;
-            // Note: Cannot easily update odometer from ERPM without precise integration
-        }
-    } else {
-        state.speed_kmh = 0;
+    // Distance Calculation (ERPM Integration)
+    if (state.speed_kmh > 0.5f) {
+        float dist_km = (state.speed_kmh * dt_logic) / 3600000.0f;
+        state.odometer += dist_km;
+        state.trip_distance += dist_km;
+        state.travel_distance += dist_km;
+        last_activity_time = now;
+        moving_time_ms += dt_logic;
     }
 
     // Average Speed Calculation
     if (moving_time_ms > 0) {
-        state.avg_speed = (state.travel_distance * 3600000.0) / moving_time_ms;
+        state.avg_speed = (state.travel_distance * 3600000.0f) / moving_time_ms;
     }
 
-    // Power Calculation
-    float calc_volt = (state.input_voltage > 0) ? state.input_voltage : state.bms_voltage;
-    // Use the max of input_current or motor_current * duty to capture power regardless of reporting status
-    float calc_amps = (fabsf(state.input_current) > 0.05f) ? state.input_current : (state.motor_current * state.duty_cycle);
-    float power = calc_volt * calc_amps;
+    // Power Calculation (Using BMS Voltage and Motor Current * Duty)
+    float calc_amps = state.motor_current * state.duty_cycle;
+    state.power = state.bms_voltage * calc_amps;
 
     // Efficiency Calculation (Wh/km)
-    if (state.speed_kmh > 1.0) { // Only calc when moving > 1km/h to avoid spikes
-        float instant_eff = power / state.speed_kmh;
+    if (state.speed_kmh > 1.0f) { 
+        float instant_eff = state.power / state.speed_kmh;
         if (state.efficiency <= 0) state.efficiency = instant_eff;
-        else state.efficiency = state.efficiency * 0.95 + instant_eff * 0.05;
+        else state.efficiency = state.efficiency * 0.95f + instant_eff * 0.05f;
     } 
 
     if (state.efficiency > 0) {
-        state.remaining_range = (state.bms_soc / 100.0 * BATTERY_CAPACITY_WH) / state.efficiency;
+        state.remaining_range = (state.bms_soc / 100.0f * BATTERY_CAPACITY_WH) / state.efficiency;
     } else {
         state.remaining_range = 0;
     }

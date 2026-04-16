@@ -38,61 +38,31 @@ void telemetry_update() {
                     state.duty_cycle = (float)duty / 1000.0f;
                     break;
                 }
-                case 0x0E: { // CAN_PACKET_STATUS_2 (Status 2): Amp Hours, Amp Hours Charged
-                    int32_t ah = (int32_t)((uint32_t)msg.data[0] << 24 | (uint32_t)msg.data[1] << 16 | (uint32_t)msg.data[2] << 8 | (uint32_t)msg.data[3]);
-                    state.amp_hours = (float)ah / 10000.0f;
-                    break;
-                }
-                case 0x0F: { // CAN_PACKET_STATUS_3 (Status 3): Watt Hours, Watt Hours Charged
-                    // FSD doesn't have a field for this yet, but we could add it to SystemState if needed
-                    break;
-                }
-                case 0x10: { // CAN_PACKET_STATUS_4 (Status 4): Temp FET, Temp Motor, Current In
+                case 0x10: { // CAN_PACKET_STATUS_4 (Status 4): Temp FET, Temp Motor
                     int16_t fet    = (int16_t)((uint16_t)msg.data[0] << 8 | (uint16_t)msg.data[1]);
                     int16_t mot    = (int16_t)((uint16_t)msg.data[2] << 8 | (uint16_t)msg.data[3]);
-                    int16_t cur_in = (int16_t)((uint16_t)msg.data[4] << 8 | (uint16_t)msg.data[5]);
                     state.fet_temp = (float)fet / 10.0f;
                     state.motor_temp = (float)mot / 10.0f;
-                    state.input_current = (float)cur_in / 10.0f;
-                    break;
-                }
-                case 0x1B: { // CAN_PACKET_STATUS_5 (Status 5): Tachometer, Voltage In
-                    int32_t tacho = (int32_t)((uint32_t)msg.data[0] << 24 | (uint32_t)msg.data[1] << 16 | (uint32_t)msg.data[2] << 8 | (uint32_t)msg.data[3]);
-                    int16_t volt  = (int16_t)((uint16_t)msg.data[4] << 8 | (uint16_t)msg.data[5]);
-                    state.tachometer = (float)tacho;
-                    state.input_voltage = (float)volt / 10.0f;
                     break;
                 }
             }
         } else if (node == BMS_ID) {
             switch(cmd) {
-                case 38: { // CAN_PACKET_BMS_V_TOT (0x26)
-                    int32_t v_tot = (int32_t)((uint32_t)msg.data[0] << 24 | (uint32_t)msg.data[1] << 16 | (uint32_t)msg.data[2] << 8 | (uint32_t)msg.data[3]);
-                    state.bms_voltage = (float)v_tot / 1000.0f;
+                case 38: { // CAN_PACKET_BMS_V_TOT (0x26): float32
+                    uint32_t u_v = ((uint32_t)msg.data[0] << 24 | (uint32_t)msg.data[1] << 16 | (uint32_t)msg.data[2] << 8 | (uint32_t)msg.data[3]);
+                    memcpy(&state.bms_voltage, &u_v, 4);
                     break;
                 }
-                case 43: { // CAN_PACKET_BMS_TEMPS (0x2B)
+                case 43: { // CAN_PACKET_BMS_TEMPS (0x2B): float16 scaled by 100.0
                     uint8_t start_idx = msg.data[0];
-                    if (start_idx == 0) { // We only take the first hottest if we want bms_hottest_cell
+                    if (start_idx == 0) {
                         int16_t t1 = (int16_t)((uint16_t)msg.data[1] << 8 | (uint16_t)msg.data[2]);
                         state.bms_hottest_cell = (float)t1 / 100.0f;
                     }
                     break;
                 }
-                case 41: { // CAN_PACKET_BMS_V_CELL (0x29)
-                    uint8_t start_idx = msg.data[0];
-                    for (int i = 0; i < 3; i++) {
-                        if (start_idx + i < 16) {
-                            uint16_t v = (uint16_t)((uint16_t)msg.data[1 + i*2] << 8 | (uint16_t)msg.data[2 + i*2]);
-                            state.cell_voltages[start_idx + i] = (float)v / 1000.0f;
-                        }
-                    }
-                    break;
-                }
                 case 45: { // CAN_PACKET_BMS_SOC_SOH_TEMP_STAT (0x2D)
-                    state.bms_soc = (float)msg.data[4] / 2.55f; // 0-255 -> 0-100%
-                    
-                    // Fallback for hottest cell
+                    state.bms_soc = (float)msg.data[4] / 2.55f; // 0-255 -> 0.0-100.0%
                     if (state.bms_hottest_cell <= 0) {
                         state.bms_hottest_cell = (float)((int8_t)msg.data[6]);
                     }
@@ -107,4 +77,21 @@ void telemetry_update() {
         msg_count = 0;
         last_load_calc = millis();
     }
+}
+
+void telemetry_send_assist(float rel_current) {
+    twai_message_t msg;
+    msg.identifier = (10 << 8) | VESC_ID; // CAN_PACKET_SET_CURRENT_REL = 10
+    msg.extd = 1;
+    msg.data_length_code = 4;
+    
+    uint32_t u_val;
+    memcpy(&u_val, &rel_current, 4);
+    
+    msg.data[0] = (u_val >> 24) & 0xFF;
+    msg.data[1] = (u_val >> 16) & 0xFF;
+    msg.data[2] = (u_val >> 8) & 0xFF;
+    msg.data[3] = u_val & 0xFF;
+
+    twai_transmit(&msg, pdMS_TO_TICKS(10));
 }

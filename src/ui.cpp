@@ -12,7 +12,6 @@ void scene_dashboard();
 void scene_power_metrics();
 void scene_trip_computer();
 void scene_system_health();
-void scene_cell_voltages();
 void draw_startup_animation(uint32_t elapsed);
 
 void ui_init() {
@@ -38,7 +37,6 @@ void ui_update() {
             case 1: scene_power_metrics(); break;
             case 2: scene_trip_computer(); break;
             case 3: scene_system_health(); break;
-            case 4: scene_cell_voltages(); break;
             default: state.current_page = 0; break;
         }
     }
@@ -92,8 +90,7 @@ void scene_dashboard() {
     u8g2.setFont(u8g2_font_6x10_tf);
     u8g2.drawStr(80, 45, "km/h");
 
-    float watts = state.input_voltage * state.input_current;
-    sprintf(buf, "%.0fW", watts);
+    sprintf(buf, "%.0fW", state.power);
     u8g2.drawStr(5, 62, buf);
 
     sprintf(buf, "%.1fkm", state.remaining_range);
@@ -109,16 +106,18 @@ void scene_power_metrics() {
     u8g2.drawStr(0, 10, "POWER METRICS");
     u8g2.drawLine(0, 12, 128, 12);
 
-    sprintf(buf, "Voltage: %.1f V", state.input_voltage);
+    sprintf(buf, "Voltage: %.1f V", state.bms_voltage); // Use BMS voltage
     u8g2.drawStr(0, 25, buf);
-    sprintf(buf, "Current: %.1f A", state.input_current);
+    
+    float calc_amps = state.motor_current * state.duty_cycle;
+    sprintf(buf, "Current: %.1f A", calc_amps);
     u8g2.drawStr(0, 38, buf);
 
     sprintf(buf, "Effic:   %.1f Wh/km", state.efficiency);
     u8g2.drawStr(0, 51, buf);
 
-    sprintf(buf, "Used:    %.2f Ah", state.amp_hours);
-    u8g2.drawStr(0, 64, buf);
+    // Ah is no longer available in telemetry
+    u8g2.drawStr(0, 64, "Used:    --- Ah");
 }
 
 void scene_trip_computer() {
@@ -156,23 +155,4 @@ void scene_system_health() {
 
     sprintf(buf, "CAN:   %.0f msg/s", state.can_load);
     u8g2.drawStr(0, 64, buf);
-}
-
-void scene_cell_voltages() {
-    char buf[16];
-    u8g2.setFont(u8g2_font_5x7_tf);
-    u8g2.drawStr(0, 8, "CELL VOLTAGES");
-    u8g2.drawLine(0, 10, 128, 10);
-
-    for (int i = 0; i < 16; i++) {
-        int x = (i % 4) * 32;
-        int y = 20 + (i / 4) * 11;
-        if (state.cell_voltages[i] > 0) {
-            sprintf(buf, "%d:%.2f", i+1, state.cell_voltages[i]);
-            u8g2.drawStr(x, y, buf);
-        } else {
-            sprintf(buf, "%d:---", i+1);
-            u8g2.drawStr(x, y, buf);
-        }
-    }
 }

@@ -35,6 +35,7 @@ struct SystemState {
     uint32_t fault_code = 0;
     uint32_t last_can_activity = 0;
     float avg_speed = 0;
+    float power = 0;
     float efficiency = 0;
     float remaining_range = 0;
     float can_load = 0; // % of expected messages
@@ -49,5 +50,6 @@ extern SystemState state;
 
 void telemetry_init();
 void telemetry_update();
+void telemetry_send_assist(float rel_current);
 
 #endif
