@@ -8,15 +8,16 @@
 - **Display:** 0.96" SSD1306 OLED (128x64, I2C).
 - **Communication:**
   - **CAN Bus:** 500kbps (standard VESC bitrate).
+  - **VESC ID:** 56.
   - **I2C:** Display (SDA: GPIO 8, SCL: GPIO 9).
 - **Inputs:**
-  - **Button 1 (GPIO 6):** support level decrease (Short Press),Page Navigation (long press)
-  - **Button 2 (GPIO 11):** support level increase (short press), Trip Reset (Long Press).
+  - **Button 1 (GPIO 6):** support level decrease (Short Press), Trip Reset (Long Press).
+  - **Button 2 (GPIO 11):** support level increase (short press), Page Navigation (long press).
 
 ## 3. Software Architecture (Modular Design)
 The firmware is divided into three logical layers to mirror the modularity of the reference repository:
 1. **Telemetry Engine (CAN):** Asynchronous task that decodes VESC Status messages into a global `SystemState` struct.
-2. **Logic Engine:** Calculates derived values (Power, Efficiency, Wh/km, SoC from Voltage).
+2. **Logic Engine:** Calculates derived values (Power, Efficiency, Wh/km, Range from SoC annd current consumption).
 3. **UI Engine (U8g2):** A page-manager that renders "Scenes" based on the current state.
 
 ## 4. Functional Requirements
@@ -33,27 +34,24 @@ The firmware is divided into three logical layers to mirror the modularity of th
 ### 4.2 UI Pages (Scenes)
 1. **DASHBOARD (Main):**
    - Large Speedometer (km/h).
-   - Battery Bar (Visual) + SoC %.
-   - Real-time Power (Watts).
+   - Battery Bar (Visual SoC).
+   - Range (km)
 2. **POWER METRICS:**
-   - Current (Amps) + Voltage.
+   - Real-time Power (Watts).
    - Efficiency (Wh/km).
    - Capacity used (Ah).
+   - MOSFET & Motor Temps.
 3. **TRIP COMPUTER:**
    - Trip Distance + Odometer.
    - Travel Time (Session).
    - Average Speed.
-4. **SYSTEM HEALTH (Diagnostics):**
-   - MOSFET & Motor Temps.
-   - VESC Fault Codes (Flags).
-   - CAN Bus Load/Status.
 
 ### 4.3 Advanced Logic
 - **Power Calculation:** `Watts = InputVoltage * InputCurrent`.
 - **Distance Calculation:** `delta_dist = (delta_tacho / (POLE_PAIRS * 6.0 * GEAR_RATIO)) * WHEEL_CIRCUMFERENCE`.
 - **Speed Calculation:** `km/h = (delta_dist_km * 3,600,000) / delta_time_ms`.
 - **Automatic Trip Management:**
-  - Save Odometer/Trip to NVS every 5 minutes.
+  - Save Odometer/Trip to NVS every 30 minutes and on power down.
   - Reset "Session" distance after 30 minutes of 0 ERPM.
 - **Dynamic Refresh:** UI updates at 10Hz (100ms), CAN polling is opportunistic (loop-speed).
 

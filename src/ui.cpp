@@ -77,6 +77,13 @@ void scene_dashboard() {
     int bar_width = (int)((state.bms_soc / 100.0) * 124);
     if (bar_width > 0) u8g2.drawBox(2, 2, bar_width, 6);
 
+    // Assist Level
+    u8g2.setFont(u8g2_font_6x10_tf);
+    sprintf(buf, "PAS %d", state.assist_level);
+    u8g2.setDrawColor(0); // Invert
+    u8g2.drawStr(55, 8, buf);
+    u8g2.setDrawColor(1);
+
     u8g2.setFont(u8g2_font_logisoso24_tr);
     sprintf(buf, "%.1f", state.speed_kmh);
     u8g2.drawStr(5, 45, buf);
@@ -84,8 +91,11 @@ void scene_dashboard() {
     u8g2.drawStr(80, 45, "km/h");
 
     float watts = state.input_voltage * state.input_current;
-    sprintf(buf, "%.0f W", watts);
+    sprintf(buf, "%.0fW", watts);
     u8g2.drawStr(5, 62, buf);
+
+    sprintf(buf, "%.1fkm", state.remaining_range);
+    u8g2.drawStr(45, 62, buf);
 
     sprintf(buf, "%.0f%%", state.bms_soc);
     u8g2.drawStr(95, 62, buf);
@@ -120,7 +130,7 @@ void scene_trip_computer() {
     sprintf(buf, "Odo:  %.1f km", state.odometer);
     u8g2.drawStr(0, 38, buf);
 
-    uint32_t active_s = (millis() - state.start_time) / 1000;
+    uint32_t active_s = (millis() - state.session_start_time) / 1000;
     sprintf(buf, "Time: %02d:%02d:%02d", active_s/3600, (active_s%3600)/60, active_s%60);
     u8g2.drawStr(0, 51, buf);
 
@@ -139,13 +149,9 @@ void scene_system_health() {
     sprintf(buf, "Motor: %.1f C", state.motor_temp);
     u8g2.drawStr(0, 38, buf);
     
-    sprintf(buf, "CAN:   %.0f msg/s", state.can_load);
+    sprintf(buf, "BMS:   %.1f C", state.bms_hottest_cell);
     u8g2.drawStr(0, 51, buf);
 
-    if (state.fault_code == 0) {
-        u8g2.drawStr(0, 64, "Status: OK");
-    } else {
-        sprintf(buf, "FAULT: %d", state.fault_code);
-        u8g2.drawStr(0, 64, buf);
-    }
+    sprintf(buf, "CAN:   %.0f msg/s", state.can_load);
+    u8g2.drawStr(0, 64, buf);
 }

@@ -9,7 +9,7 @@
 #define PIN_CAN_RX   16
 
 // --- VESC/BMS Configuration (FSD 3.3) ---
-#define VESC_ID      1 
+#define VESC_ID      56 
 #define BMS_ID       10
 #define CAN_SPEED    TWAI_TIMING_CONFIG_500KBITS()
 
@@ -31,10 +31,15 @@ struct SystemState {
     uint32_t start_time = 0;
     uint32_t fault_code = 0;
     uint32_t last_can_activity = 0;
+    float avg_speed = 0;
+    float efficiency = 0;
+    float remaining_range = 0;
+    float can_load = 0; // % of expected messages
     
     // Additional Logic State
     uint8_t assist_level = 0;
     uint8_t current_page = 0;
+    uint32_t session_start_time = 0;
 };
 
 extern SystemState state;

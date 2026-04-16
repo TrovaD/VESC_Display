@@ -29,6 +29,7 @@ void logic_init() {
     
     last_save_time = millis();
     last_activity_time = millis();
+    state.session_start_time = millis();
 }
 
 void handle_button(Button &b, void (*short_press)(), void (*long_press)()) {
@@ -62,9 +63,10 @@ void b1_short() {
     }
 }
 
-// B1 Long: Page Nav
+// B1 Long: Reset Trip
 void b1_long() {
-    state.current_page = (state.current_page + 1) % 4;
+    state.trip_distance = 0;
+    prefs.putFloat("trip", 0.0);
 }
 
 // B2 Short: Increase Assist
@@ -75,13 +77,19 @@ void b2_short() {
     }
 }
 
-// B2 Long: Reset Trip
+// B2 Long: Page Nav
 void b2_long() {
-    state.trip_distance = 0;
-    prefs.putFloat("trip", 0.0);
+    state.current_page = (state.current_page + 1) % 4;
 }
 
+static uint32_t moving_time_ms = 0;
+static uint32_t last_logic_time = 0;
+
 void logic_update() {
+    uint32_t now = millis();
+    uint32_t dt_logic = (last_logic_time == 0) ? 0 : now - last_logic_time;
+    last_logic_time = now;
+
     handle_button(btn1, b1_short, b1_long);
     handle_button(btn2, b2_short, b2_long);
 
@@ -92,7 +100,6 @@ void logic_update() {
             // 1 mechanical rev = pole_pairs * 6 steps
             float delta_dist = (delta_tacho / (POLE_PAIRS * 6.0 * GEAR_RATIO)) * WHEEL_CIRCUMFERENCE;
             static uint32_t last_tacho_time = 0;
-            uint32_t now = millis();
             
             if (delta_dist > 0) {
                 float dist_km = delta_dist / 1000.0;
@@ -100,6 +107,7 @@ void logic_update() {
                 state.trip_distance += dist_km;
                 state.travel_distance += dist_km;
                 last_activity_time = now;
+                moving_time_ms += dt_logic;
 
                 if (last_tacho_time != 0) {
                     uint32_t dt = now - last_tacho_time;
@@ -117,6 +125,25 @@ void logic_update() {
         state.speed_kmh = 0;
     }
 
+    // Average Speed Calculation
+    if (moving_time_ms > 0) {
+        state.avg_speed = (state.travel_distance * 3600000.0) / moving_time_ms;
+    }
+
+    // Efficiency Calculation (Wh/km)
+    float power = state.input_voltage * state.input_current;
+    if (state.speed_kmh > 1.0) { // Only calc when moving > 1km/h to avoid spikes
+        float instant_eff = power / state.speed_kmh;
+        if (state.efficiency <= 0) state.efficiency = instant_eff;
+        else state.efficiency = state.efficiency * 0.95 + instant_eff * 0.05;
+    } 
+
+    if (state.efficiency > 0) {
+        state.remaining_range = (state.bms_soc / 100.0 * BATTERY_CAPACITY_WH) / state.efficiency;
+    } else {
+        state.remaining_range = 0;
+    }
+
     // Odometer Persistence (every 5 mins)
     if (millis() - last_save_time > 300000) {
         prefs.putFloat("odometer", state.odometer);
@@ -127,6 +154,8 @@ void logic_update() {
     // Inactivity Reset (30 mins)
     if (millis() - last_activity_time > 1800000) {
         state.travel_distance = 0;
-        // Don't reset last_activity_time here, it will be reset when tacho moves
+        state.session_start_time = millis();
+        moving_time_ms = 0;
+        last_activity_time = millis();
     }
 }

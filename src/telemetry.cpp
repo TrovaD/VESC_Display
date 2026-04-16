@@ -13,9 +13,13 @@ void telemetry_init() {
     state.start_time = millis();
 }
 
+static uint32_t msg_count = 0;
+static uint32_t last_load_calc = 0;
+
 void telemetry_update() {
     twai_message_t msg;
     while (twai_receive(&msg, 0) == ESP_OK) {
+        msg_count++;
         if (!msg.extd) continue;
 
         uint32_t id = msg.identifier;
@@ -53,6 +57,10 @@ void telemetry_update() {
                     state.input_voltage = volt / 10.0;
                     break;
                 }
+                case 0x1C: { // Status 6: Fault Code
+                    state.fault_code = msg.data[3];
+                    break;
+                }
             }
         } else if (node == BMS_ID) {
             if (cmd == 0x2D) { // BMS SOC/Temp
@@ -60,5 +68,11 @@ void telemetry_update() {
                 state.bms_hottest_cell = (float)msg.data[6];
             }
         }
+    }
+
+    if (millis() - last_load_calc > 1000) {
+        state.can_load = msg_count; // Messages per second
+        msg_count = 0;
+        last_load_calc = millis();
     }
 }

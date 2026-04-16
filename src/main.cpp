@@ -5,13 +5,13 @@
 
 void setup() {
     Serial.begin(115200);
-    
+
     // Initialize Modules
     telemetry_init();
     logic_init();
     ui_init();
-    
-    Serial.println("VESC Display 2 (Modular) Started");
+
+    Serial.println("TROVATA Display started");
 }
 
 void loop() {
@@ -19,7 +19,7 @@ void loop() {
     telemetry_update();
     logic_update();
     ui_update();
-    
+
     // Yield to avoid watchdog if necessary (though non-blocking)
     yield();
 }
