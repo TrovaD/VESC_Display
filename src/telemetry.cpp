@@ -38,11 +38,25 @@ void telemetry_update() {
                     state.duty_cycle = (float)duty / 1000.0f;
                     break;
                 }
-                case 0x10: { // CAN_PACKET_STATUS_4 (Status 4): Temp FET, Temp Motor
+                case 0x0E: { // CAN_PACKET_STATUS_2: Amp Hours
+                    uint32_t u_ah = ((uint32_t)msg.data[0] << 24 | (uint32_t)msg.data[1] << 16 | (uint32_t)msg.data[2] << 8 | (uint32_t)msg.data[3]);
+                    memcpy(&state.amp_hours, &u_ah, 4);
+                    break;
+                }
+                case 0x10: { // CAN_PACKET_STATUS_4: Temp FET, Temp Motor, Current In
                     int16_t fet    = (int16_t)((uint16_t)msg.data[0] << 8 | (uint16_t)msg.data[1]);
                     int16_t mot    = (int16_t)((uint16_t)msg.data[2] << 8 | (uint16_t)msg.data[3]);
+                    int16_t cur_in = (int16_t)((uint16_t)msg.data[4] << 8 | (uint16_t)msg.data[5]);
                     state.fet_temp = (float)fet / 10.0f;
                     state.motor_temp = (float)mot / 10.0f;
+                    state.input_current = (float)cur_in / 10.0f;
+                    break;
+                }
+                case 0x1B: { // CAN_PACKET_STATUS_5: Tachometer, Voltage
+                    int32_t tacho = (int32_t)((uint32_t)msg.data[0] << 24 | (uint32_t)msg.data[1] << 16 | (uint32_t)msg.data[2] << 8 | (uint32_t)msg.data[3]);
+                    int16_t volt  = (int16_t)((uint16_t)msg.data[4] << 8 | (uint16_t)msg.data[5]);
+                    state.tachometer = (float)tacho;
+                    state.input_voltage = (float)volt / 10.0f;
                     break;
                 }
             }
@@ -51,6 +65,14 @@ void telemetry_update() {
                 case 38: { // CAN_PACKET_BMS_V_TOT (0x26): float32
                     uint32_t u_v = ((uint32_t)msg.data[0] << 24 | (uint32_t)msg.data[1] << 16 | (uint32_t)msg.data[2] << 8 | (uint32_t)msg.data[3]);
                     memcpy(&state.bms_voltage, &u_v, 4);
+                    break;
+                }
+                case 41: { // CAN_PACKET_BMS_I (0x29): float32
+                    uint32_t u_i = ((uint32_t)msg.data[0] << 24 | (uint32_t)msg.data[1] << 16 | (uint32_t)msg.data[2] << 8 | (uint32_t)msg.data[3]);
+                    float bms_i;
+                    memcpy(&bms_i, &u_i, 4);
+                    // If we have BMS current, it's a better source for input_current
+                    state.input_current = bms_i; 
                     break;
                 }
                 case 43: { // CAN_PACKET_BMS_TEMPS (0x2B): float16 scaled by 100.0
@@ -63,6 +85,7 @@ void telemetry_update() {
                 }
                 case 45: { // CAN_PACKET_BMS_SOC_SOH_TEMP_STAT (0x2D)
                     state.bms_soc = (float)msg.data[4] / 2.55f; // 0-255 -> 0.0-100.0%
+                    state.bms_soh = (float)msg.data[5] / 2.55f; // 0-255 -> 0.0-100.0%
                     if (state.bms_hottest_cell <= 0) {
                         state.bms_hottest_cell = (float)((int8_t)msg.data[6]);
                     }

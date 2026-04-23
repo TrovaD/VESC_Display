@@ -20,17 +20,21 @@
 
 ### 4.1 Telemetry Data
 - **VESC:** ERPM, Current (Motor/In), Duty, Ah, Tachometer, Voltage.
-- **BMS:** SoC (scaled 0-255), Total Voltage, Cell Voltages (16 cells), Hottest Cell Temp.
+- **BMS:** SoC (scaled 0-255), Total Voltage
 
-### 4.2 UI Pages
-1. **DASHBOARD:** Speed, SoC Bar, PAS Level, Power (W), Range (km).
-2. **POWER METRICS:** Voltage, Current, Efficiency (Wh/km), Amp Hours used.
-3. **TRIP COMPUTER:** Trip/Odo distance, Session Time, Avg Speed.
-4. **SYSTEM HEALTH:** FET/Motor/BMS Temps, CAN load (msg/s).
+### 4.2 UI Pages (Enhanced)
+1. **DASHBOARD:** 
+   - **Visuals:** Circular Gauge for power (clockwise)/recuperation (counterclockwise) with separate PAS in the centre (0-4), in the middle a Vertical SoC Bar, right side a Large Speed display (km/h).
+2. **POWER METRICS:** 
+   - **Visuals:** Circular Gauge outside for the for power (clockwise)/recuperation (counterclockwise) and a circular gauge inside for the powermeter with separate Efficiency Gauge (Wh/km), vertical bar with the remaining battery range (maximum km on top), right side a Large Speed display (km/h).
+3. **TRIP COMPUTER:** 
+   - **Visuals:** Trip/Odo distance, Session Time, Avg Speed, right side a Large Speed display (km/h).
+4. **SYSTEM HEALTH:** 
+   - **Visuals:** left side Odometer and trip and Motor Temperature and SoH, right side a Large Speed display (km/h).
 
-### 4.3 Support Level Adjustment (New)
-- **Levels:** 0 to 4.
-- **Communication:** Sends `CAN_PACKET_SET_CURRENT_REL` (ID 10) to VESC.
+### 4.3 Support Level Adjustment
+- **Levels:** 0 to 4, inside the gauge of the dashboard
+- **Communication:** Sends `CAN_PACKET_SET_CURRENT_REL` (ID 10) to VESC ID 56.
 - **Mapping:** 
   - Level 0: 0.0 (0%)
   - Level 1: 0.25 (25%)
@@ -39,13 +43,15 @@
   - Level 4: 1.0 (100%)
 
 ### 4.4 Advanced Logic
-- **Speed:** Calculated from Tachometer with ERPM fallback.
-- **Distance:** `delta_dist = fabsf(delta_tacho / (PP * 6 * GR)) * Circumference`.
+- **Speed:** Calculated from ERPM integration.
+- **Distance:** `delta_dist = (speed_kmh * dt) / 3600000.0f`.
 - **Range:** `(SoC / 100 * Capacity_Wh) / Efficiency (EMA)`.
 - **Session Reset:** Clears after 30 mins of inactivity.
 - **Persistence:** Odo/Trip saved to NVS every 5 mins.
 
-## 5. Technical Constraints
-- **Battery Capacity:** 500Wh (default).
-- **VESC ID:** 56, **BMS ID:** 10.
-- **Framework:** Arduino/PlatformIO.
+## 5. Technical Constants (Current)
+- **Battery Capacity:** 500Wh.
+- **VESC ID:** 56 | **BMS ID:** 10.
+- **Tire Size:** 2.167m (Wheel Circumference).
+- **Gearbox:** 11.3:1 Ratio | **Pole Pairs:** 14.
+- **Framework:** Arduino/PlatformIO (ESP32-S3).

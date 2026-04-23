@@ -114,9 +114,9 @@ void logic_update() {
         state.avg_speed = (state.travel_distance * 3600000.0f) / moving_time_ms;
     }
 
-    // Power Calculation (Using BMS Voltage and Motor Current * Duty)
-    float calc_amps = state.motor_current * state.duty_cycle;
-    state.power = state.bms_voltage * calc_amps;
+    // Power Calculation (Using best available Voltage and Current)
+    float active_volt = (state.bms_voltage > 0) ? state.bms_voltage : state.input_voltage;
+    state.power = active_volt * state.input_current;
 
     // Efficiency Calculation (Wh/km)
     if (state.speed_kmh > 1.0f) { 

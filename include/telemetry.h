@@ -25,6 +25,7 @@ struct SystemState {
     float erpm = 0;
     float amp_hours = 0;
     float bms_soc = 0;
+    float bms_soh = 0;
     float bms_hottest_cell = 0;
     float cell_voltages[16] = {0};
     float speed_kmh = 0;
