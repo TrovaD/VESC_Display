@@ -2,7 +2,7 @@
 
 U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
 
-static const uint32_t UI_REFRESH_MS = 100; // UI refresh interval in milliseconds
+static const uint32_t UI_REFRESH_MS = 16; // UI refresh interval in milliseconds
 
 static uint32_t startup_start_time = 0;
 static bool startup_finished = false;
@@ -13,6 +13,44 @@ void scene_power_metrics();
 void scene_trip_computer();
 void scene_system_health();
 void draw_startup_animation(uint32_t elapsed);
+
+// --- UI Helpers (from Sample) ---
+
+void draw_gauge(int x, int y, int r, int val, int max_val, const char* label) {
+    u8g2.setDrawColor(1);
+    for(int i=0; i<360; i+=20) {
+        float rad = i * 0.01745f;
+        u8g2.drawPixel(x + cos(rad)*r, y + sin(rad)*r);
+    }
+
+    int end_angle = map(val, 0, max_val, 0, 359);
+    for(int i=0; i <= end_angle; i += 2) {
+        float rad = (i + 90) * 0.01745f;
+        u8g2.drawLine(x + cos(rad)*(r-2), y + sin(rad)*(r-2), x + cos(rad)*r, y + sin(rad)*r);
+    }
+
+    u8g2.setFont(u8g2_font_7x14_tf);
+    char buf[8];
+    sprintf(buf, "%d", val);
+    int tw = u8g2.getStrWidth(buf);
+    u8g2.drawStr(x - tw/2, y + 5, buf);
+    
+    u8g2.setFont(u8g2_font_6x10_tf);
+    tw = u8g2.getStrWidth(label);
+    u8g2.drawStr(x - tw/2, y + r + 10, label);
+}
+
+void draw_speed_large(int x, int y, bool large) {
+    if (large) u8g2.setFont(u8g2_font_logisoso32_tn);
+    else u8g2.setFont(u8g2_font_logisoso20_tn);
+    
+    char buf[8];
+    sprintf(buf, "%02d", (int)state.speed_kmh);
+    u8g2.drawStr(x, y, buf);
+    
+    u8g2.setFont(u8g2_font_6x10_tf);
+    u8g2.drawStr(x + (large ? 40 : 25), y, "km/h");
+}
 
 void ui_init() {
     Wire.begin(PIN_I2C_SDA, PIN_I2C_SCL);
@@ -28,7 +66,7 @@ void ui_update() {
     u8g2.clearBuffer();
 
     uint32_t elapsed = millis() - startup_start_time;
-    if (elapsed < 5000 && !startup_finished) {
+    if (elapsed < 3000 && !startup_finished) { // Reduced startup to 3s
         draw_startup_animation(elapsed);
     } else {
         startup_finished = true;
@@ -46,14 +84,10 @@ void ui_update() {
 
 void draw_startup_animation(uint32_t elapsed) {
     int frame = elapsed / UI_REFRESH_MS;
-    int x_offset = (int)(elapsed * 0.03);
+    int x_offset = (int)(elapsed * 0.04);
 
     u8g2.setFont(u8g2_font_6x10_tf);
-    // ASCII Bike refined
-    //    __o
-    //  _`\<,_
-    // (x)/ (x)
-    u8g2.drawStr(x_offset + 16, 32, "__o"); // Neck fix: moved up 1px
+    u8g2.drawStr(x_offset + 16, 32, "__o"); 
     u8g2.drawStr(x_offset + 4, 43, "_`\\<,_");
 
     if (frame % 2 == 0) {
@@ -72,52 +106,46 @@ void draw_startup_animation(uint32_t elapsed) {
 }
 
 void scene_dashboard() {
+    // Battery Vertical Bar
+    u8g2.drawFrame(2, 5, 12, 54);
+    int bar_height = map((int)state.bms_soc, 0, 100, 0, 50);
+    u8g2.drawBox(4, 57 - bar_height, 8, bar_height);
+    
+    // Assist Level Gauge (0-4 mapped to gauge)
+    draw_gauge(55, 28, 20, state.assist_level, 4, "PAS");
+
+    // Speed
+    draw_speed_large(85, 40, true);
+
+    // Bottom Stats
+    u8g2.setFont(u8g2_font_6x10_tf);
     char buf[16];
-    u8g2.drawFrame(0, 0, 128, 10);
-    int bar_width = (int)((state.bms_soc / 100.0) * 124);
-    if (bar_width > 0) u8g2.drawBox(2, 2, bar_width, 6);
-
-    // Assist Level
-    u8g2.setFont(u8g2_font_6x10_tf);
-    sprintf(buf, "PAS %d", state.assist_level);
-    u8g2.setDrawColor(0); // Invert
-    u8g2.drawStr(55, 8, buf);
-    u8g2.setDrawColor(1);
-
-    u8g2.setFont(u8g2_font_logisoso24_tr);
-    sprintf(buf, "%.1f", state.speed_kmh);
-    u8g2.drawStr(5, 45, buf);
-    u8g2.setFont(u8g2_font_6x10_tf);
-    u8g2.drawStr(80, 45, "km/h");
-
     sprintf(buf, "%.0fW", state.power);
-    u8g2.drawStr(5, 62, buf);
+    u8g2.drawStr(20, 62, buf);
 
     sprintf(buf, "%.1fkm", state.remaining_range);
-    u8g2.drawStr(45, 62, buf);
-
-    sprintf(buf, "%.0f%%", state.bms_soc);
-    u8g2.drawStr(95, 62, buf);
+    int tw = u8g2.getStrWidth(buf);
+    u8g2.drawStr(124 - tw, 62, buf);
 }
 
 void scene_power_metrics() {
-    char buf[32];
-    u8g2.setFont(u8g2_font_6x10_tf);
-    u8g2.drawStr(0, 10, "POWER METRICS");
-    u8g2.drawLine(0, 12, 128, 12);
+    // Efficiency Gauge
+    draw_gauge(30, 30, 18, (int)state.efficiency, 50, "Wh/km");
 
-    sprintf(buf, "Voltage: %.1f V", state.bms_voltage); // Use BMS voltage
-    u8g2.drawStr(0, 25, buf);
+    // Metrics List
+    u8g2.setFont(u8g2_font_6x10_tf);
+    char buf[32];
+    sprintf(buf, "V: %.1fV", state.bms_voltage);
+    u8g2.drawStr(65, 15, buf);
     
     float calc_amps = state.motor_current * state.duty_cycle;
-    sprintf(buf, "Current: %.1f A", calc_amps);
-    u8g2.drawStr(0, 38, buf);
+    sprintf(buf, "A: %.1fA", calc_amps);
+    u8g2.drawStr(65, 28, buf);
 
-    sprintf(buf, "Effic:   %.1f Wh/km", state.efficiency);
-    u8g2.drawStr(0, 51, buf);
+    sprintf(buf, "P: %.0fW", state.power);
+    u8g2.drawStr(65, 41, buf);
 
-    // Ah is no longer available in telemetry
-    u8g2.drawStr(0, 64, "Used:    --- Ah");
+    draw_speed_large(75, 60, false);
 }
 
 void scene_trip_computer() {
@@ -137,6 +165,8 @@ void scene_trip_computer() {
 
     sprintf(buf, "Avg:  %.1f km/h", state.avg_speed);
     u8g2.drawStr(0, 64, buf);
+    
+    draw_speed_large(95, 45, false);
 }
 
 void scene_system_health() {
@@ -155,4 +185,7 @@ void scene_system_health() {
 
     sprintf(buf, "CAN:   %.0f msg/s", state.can_load);
     u8g2.drawStr(0, 64, buf);
+
+    draw_speed_large(95, 45, false);
 }
+
