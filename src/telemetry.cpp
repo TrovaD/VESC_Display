@@ -38,9 +38,9 @@ void telemetry_update() {
                     state.duty_cycle = (float)duty / 1000.0f;
                     break;
                 }
-                case 0x0E: { // CAN_PACKET_STATUS_2: Amp Hours
-                    uint32_t u_ah = ((uint32_t)msg.data[0] << 24 | (uint32_t)msg.data[1] << 16 | (uint32_t)msg.data[2] << 8 | (uint32_t)msg.data[3]);
-                    memcpy(&state.amp_hours, &u_ah, 4);
+                case 0x0E: { // CAN_PACKET_STATUS_2: Amp Hours (int32 × 10000)
+                    int32_t raw_ah = (int32_t)((uint32_t)msg.data[0] << 24 | (uint32_t)msg.data[1] << 16 | (uint32_t)msg.data[2] << 8 | (uint32_t)msg.data[3]);
+                    state.amp_hours = raw_ah / 10000.0f;
                     break;
                 }
                 case 0x10: { // CAN_PACKET_STATUS_4: Temp FET, Temp Motor, Current In
@@ -67,7 +67,7 @@ void telemetry_update() {
                     memcpy(&state.bms_voltage, &u_v, 4);
                     break;
                 }
-                case 41: { // CAN_PACKET_BMS_I (0x29): float32
+                case 39: { // CAN_PACKET_BMS_I (0x27): float32_auto
                     uint32_t u_i = ((uint32_t)msg.data[0] << 24 | (uint32_t)msg.data[1] << 16 | (uint32_t)msg.data[2] << 8 | (uint32_t)msg.data[3]);
                     float bms_i;
                     memcpy(&bms_i, &u_i, 4);
@@ -75,10 +75,10 @@ void telemetry_update() {
                     state.input_current = bms_i; 
                     break;
                 }
-                case 43: { // CAN_PACKET_BMS_TEMPS (0x2B): float16 scaled by 100.0
+                case 43: { // CAN_PACKET_BMS_TEMPS: byte[0]=offset, byte[1]=count, byte[2-3]=first temp (float16 × 100)
                     uint8_t start_idx = msg.data[0];
                     if (start_idx == 0) {
-                        int16_t t1 = (int16_t)((uint16_t)msg.data[1] << 8 | (uint16_t)msg.data[2]);
+                        int16_t t1 = (int16_t)((uint16_t)msg.data[2] << 8 | (uint16_t)msg.data[3]);
                         state.bms_hottest_cell = (float)t1 / 100.0f;
                     }
                     break;
@@ -107,14 +107,13 @@ void telemetry_send_assist(float rel_current) {
     msg.identifier = (10 << 8) | VESC_ID; // CAN_PACKET_SET_CURRENT_REL = 10
     msg.extd = 1;
     msg.data_length_code = 4;
-    
-    uint32_t u_val;
-    memcpy(&u_val, &rel_current, 4);
-    
-    msg.data[0] = (u_val >> 24) & 0xFF;
-    msg.data[1] = (u_val >> 16) & 0xFF;
-    msg.data[2] = (u_val >> 8) & 0xFF;
-    msg.data[3] = u_val & 0xFF;
+
+    // Firmware expects buffer_get_float32(data, 1e5): big-endian int32 scaled × 100000
+    int32_t val = (int32_t)(rel_current * 1e5f);
+    msg.data[0] = (val >> 24) & 0xFF;
+    msg.data[1] = (val >> 16) & 0xFF;
+    msg.data[2] = (val >> 8) & 0xFF;
+    msg.data[3] = val & 0xFF;
 
     twai_transmit(&msg, pdMS_TO_TICKS(10));
 }

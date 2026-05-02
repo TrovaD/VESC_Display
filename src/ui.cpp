@@ -49,23 +49,17 @@ void draw_circular_gauge(int x, int y, int r, float val, float max_val, float mi
 }
 
 void draw_speed_large(int x, int y, bool large) {
+    u8g2.setFont(u8g2_font_6x10_tf);
+    int lw = u8g2.getStrWidth("km/h");
+    int nw = large ? 42 : 28;
+    u8g2.drawStr(x + (nw - lw) / 2, y - (large ? 34 : 24), "km/h");
+
     if (large) u8g2.setFont(u8g2_font_logisoso32_tn);
     else u8g2.setFont(u8g2_font_logisoso20_tn);
-    
+
     char buf[8];
     sprintf(buf, "%02d", (int)state.speed_kmh);
     u8g2.drawStr(x, y, buf);
-    
-    u8g2.setFont(u8g2_font_6x10_tf);
-    u8g2.drawStr(x + (large ? 42 : 28), y, "km/h");
-}
-
-void draw_secondary_speed() {
-    char buf[16];
-    u8g2.setFont(u8g2_font_6x10_tf);
-    sprintf(buf, "%d km/h", (int)state.speed_kmh);
-    int tw = u8g2.getStrWidth(buf);
-    u8g2.drawStr(127 - tw, 10, buf);
 }
 
 void ui_init() {
@@ -122,36 +116,33 @@ void draw_startup_animation(uint32_t elapsed) {
 }
 
 void scene_dashboard() {
-    // Left: Power Gauge
-    draw_circular_gauge(30, 30, 26, state.power, 2000, -500, true);
+    // Column 1: Power & PAS (0-42)
+    draw_circular_gauge(21, 30, 20, state.power, 2000, -500, true);
     
-    // PAS in center of gauge
+    // Inverted PAS Label
+    u8g2.setDrawColor(1);
+    u8g2.drawBox(6, 0, 30, 11);
+    u8g2.setDrawColor(0);
+    u8g2.setFont(u8g2_font_6x10_tf);
+    u8g2.drawStr(12, 9, "PAS");
+    u8g2.setDrawColor(1);
+
+    // PAS Value in center of gauge
     u8g2.setFont(u8g2_font_logisoso20_tn);
     char pas_buf[4];
     sprintf(pas_buf, "%d", state.assist_level);
     int tw = u8g2.getStrWidth(pas_buf);
-    u8g2.drawStr(30 - tw/2, 38, pas_buf);
+    u8g2.drawStr(21 - tw/2, 40, pas_buf);
+
+    // Column 2: Battery (44-57)
     u8g2.setFont(u8g2_font_5x7_tf);
-    u8g2.drawStr(24, 15, "PAS");
-
-    // Middle: SoC Bar
-    u8g2.drawFrame(62, 10, 8, 44);
-    int bar_height = map((int)state.bms_soc, 0, 100, 0, 40);
-    u8g2.drawBox(64, 52 - bar_height, 4, bar_height);
-    u8g2.drawStr(60, 8, "BAT");
-
-    // Right: Large Speed
-    draw_speed_large(82, 42, true);
-
-    // Bottom Stats
-    u8g2.setFont(u8g2_font_6x10_tf);
-    char buf[32];
-    sprintf(buf, "%.0fW", state.power);
-    u8g2.drawStr(5, 62, buf);
-
-    sprintf(buf, "%.1fkm", state.remaining_range);
-    tw = u8g2.getStrWidth(buf);
-    u8g2.drawStr(127 - tw, 62, buf);
+    u8g2.drawStr(44, 8, "BAT");
+    u8g2.drawFrame(45, 10, 10, 44);
+    int bar_height = map((int)constrain(state.bms_soc, 0, 100), 0, 100, 0, 40);
+    u8g2.drawBox(47, 52 - bar_height, 6, bar_height);
+    
+    // Column 3: Speed (59-128)
+    draw_speed_large(62, 42, true);
 }
 
 void scene_power_metrics() {
@@ -164,18 +155,6 @@ void scene_power_metrics() {
     u8g2.setFont(u8g2_font_5x7_tf);
     u8g2.drawStr(18, 32, "Wh/km");
 
-    // Metrics List
-    u8g2.setFont(u8g2_font_6x10_tf);
-    char buf[32];
-    sprintf(buf, "V:%.1fV", state.bms_voltage > 0 ? state.bms_voltage : state.input_voltage);
-    u8g2.drawStr(65, 15, buf);
-    sprintf(buf, "A:%.1fA", state.input_current);
-    u8g2.drawStr(65, 27, buf);
-    sprintf(buf, "P:%.0fW", state.power);
-    u8g2.drawStr(65, 39, buf);
-    sprintf(buf, "U:%.2fAh", state.amp_hours);
-    u8g2.drawStr(65, 51, buf);
-
     // Range Bar (Vertical)
     u8g2.drawFrame(120, 15, 6, 35);
     int r_height = map((int)constrain(state.remaining_range, 0, 100), 0, 100, 0, 31);
@@ -183,7 +162,7 @@ void scene_power_metrics() {
     u8g2.setFont(u8g2_font_5x7_tf);
     u8g2.drawStr(115, 12, "km");
 
-    draw_secondary_speed();
+    draw_speed_large(62, 44, false);
 }
 
 void scene_trip_computer() {
@@ -213,13 +192,13 @@ void scene_system_health() {
     char buf[32];
     u8g2.setFont(u8g2_font_6x10_tf);
     
-    sprintf(buf, "Mot:%.1fC", state.motor_temp);
+    sprintf(buf, "Odo:%.1fkm", state.odometer);
     u8g2.drawStr(0, 15, buf);
-    sprintf(buf, "FET:%.1fC", state.fet_temp);
+    sprintf(buf, "Trp:%.2fkm", state.trip_distance);
     u8g2.drawStr(0, 27, buf);
-    sprintf(buf, "SoH:%.1f%%", state.bms_soh);
+    sprintf(buf, "Mot:%.1fC", state.motor_temp);
     u8g2.drawStr(0, 39, buf);
-    sprintf(buf, "CAN:%.0f/s", state.can_load);
+    sprintf(buf, "SoH:%.1f%%", state.bms_soh);
     u8g2.drawStr(0, 51, buf);
 
     draw_speed_large(82, 42, true);
