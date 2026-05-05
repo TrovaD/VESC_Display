@@ -34,12 +34,12 @@
 
 ### 4.3 Support Level Adjustment
 - **Levels:** 0 to 3, inside the gauge of the dashboard
-- **Communication:** Sends `CAN_PACKET_SET_CURRENT_REL` (ID 10) to VESC ID 56.
+- **Communication:** Sends `CAN_PACKET_SET_PAS_SUB_SCALING` (ID 63) to VESC ID 56.
 - **Mapping:**
   - Level 0: 0.0 (0%)
-  - Level 1: 0.33 (25%)
-  - Level 2: 0.66 (50%)
-  - Level 3: 1.00 (75%)
+  - Level 1: 0.33 (33%)
+  - Level 2: 0.66 (66%)
+  - Level 3: 1.00 (100%)
 
 ### 4.4 Advanced Logic
 - **Speed:** Calculated from ERPM integration.

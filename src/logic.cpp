@@ -83,7 +83,7 @@ void b2_short() {
 
 // B2 Long: Page Nav
 void b2_long() {
-    state.current_page = (state.current_page + 1) % 4;
+    state.current_page = (state.current_page + 1) % 5;
 }
 
 static uint32_t moving_time_ms = 0;

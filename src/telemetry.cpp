@@ -75,19 +75,34 @@ void telemetry_update() {
                     state.input_current = bms_i; 
                     break;
                 }
-                case 43: { // CAN_PACKET_BMS_TEMPS: byte[0]=offset, byte[1]=count, byte[2-3]=first temp (float16 × 100)
+                case 41: { // CAN_PACKET_BMS_V_CELL (0x29)
                     uint8_t start_idx = msg.data[0];
-                    if (start_idx == 0) {
-                        int16_t t1 = (int16_t)((uint16_t)msg.data[2] << 8 | (uint16_t)msg.data[3]);
-                        state.bms_hottest_cell = (float)t1 / 100.0f;
+                    if (start_idx < 16) {
+                        for (int i = 0; i < 3 && (start_idx + i) < 16; i++) {
+                            int16_t v = (int16_t)((uint16_t)msg.data[2 + i*2] << 8 | (uint16_t)msg.data[3 + i*2]);
+                            state.cell_voltages[start_idx + i] = (float)v / 1000.0f;
+                        }
+                    }
+                    break;
+                }
+                case 43: { // CAN_PACKET_BMS_TEMPS (0x2B): byte[0]=offset, byte[1]=count, bytes[2..]=temps (float16 × 100)
+                    uint8_t start_idx = msg.data[0];
+                    uint8_t count = msg.data[1];
+                    for (int i = 0; i < count && i < 3; i++) {
+                        int16_t t_raw = (int16_t)((uint16_t)msg.data[2 + i*2] << 8 | (uint16_t)msg.data[3 + i*2]);
+                        float t = (float)t_raw / 100.0f;
+                        if (start_idx + i == 0 || t > state.bms_hottest_cell) {
+                            state.bms_hottest_cell = t;
+                        }
                     }
                     break;
                 }
                 case 45: { // CAN_PACKET_BMS_SOC_SOH_TEMP_STAT (0x2D)
                     state.bms_soc = (float)msg.data[4] / 2.55f; // 0-255 -> 0.0-100.0%
                     state.bms_soh = (float)msg.data[5] / 2.55f; // 0-255 -> 0.0-100.0%
-                    if (state.bms_hottest_cell <= 0) {
-                        state.bms_hottest_cell = (float)((int8_t)msg.data[6]);
+                    float t_max = (float)((int8_t)msg.data[6]);
+                    if (t_max > state.bms_hottest_cell) {
+                        state.bms_hottest_cell = t_max;
                     }
                     break;
                 }
@@ -104,7 +119,7 @@ void telemetry_update() {
 
 void telemetry_send_assist(float rel_current) {
     twai_message_t msg;
-    msg.identifier = (10 << 8) | VESC_ID; // CAN_PACKET_SET_CURRENT_REL = 10
+    msg.identifier = (63 << 8) | VESC_ID; // CAN_PACKET_SET_PAS_SUB_SCALING = 63
     msg.extd = 1;
     msg.data_length_code = 4;
 

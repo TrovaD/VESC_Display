@@ -12,6 +12,7 @@ void scene_dashboard();
 void scene_power_metrics();
 void scene_trip_computer();
 void scene_system_health();
+void scene_cell_voltages();
 void draw_startup_animation(uint32_t elapsed);
 
 // --- UI Helpers ---
@@ -86,6 +87,7 @@ void ui_update() {
             case 1: scene_power_metrics(); break;
             case 2: scene_trip_computer(); break;
             case 3: scene_system_health(); break;
+            case 4: scene_cell_voltages(); break;
             default: state.current_page = 0; break;
         }
     }
@@ -206,6 +208,24 @@ void scene_system_health() {
     u8g2.drawLine(0, 54, 128, 54);
     u8g2.setFont(u8g2_font_5x7_tf);
     u8g2.drawStr(0, 62, "SYSTEM HEALTH");
+}
+
+void scene_cell_voltages() {
+    u8g2.setFont(u8g2_font_5x7_tf);
+    u8g2.drawStr(0, 7, "CELL VOLTAGES (V)");
+    u8g2.drawHLine(0, 9, 128);
+
+    char buf[16];
+    // Display 13 cells in two columns
+    for (int i = 0; i < 13; i++) {
+        int col = (i < 7) ? 0 : 64;
+        int row = (i < 7) ? i : (i - 7);
+        sprintf(buf, "C%02d: %.3f", i + 1, state.cell_voltages[i]);
+        u8g2.drawStr(col, 16 + row * 6, buf);
+    }
+
+    u8g2.drawLine(0, 56, 128, 56);
+    u8g2.drawStr(0, 63, "BATTERY MONITOR");
 }
 
 
